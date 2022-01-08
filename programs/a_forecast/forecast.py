@@ -25,32 +25,107 @@ from sklearn.metrics import mean_squared_error
 from sklearn.metrics import mean_absolute_error
 from sklearn.model_selection import train_test_split
 from keras.callbacks import EarlyStopping
+import random
+from datetime import datetime
 
-print(len(sys.argv))
-print(sys.argv)
+# print(len(sys.argv))
+# print(sys.argv)
 
-# Read arguments given
-# todo give maybe one more argument for window
-time_series_num = 10 # default
+#todo arguments
+look_back_window = 40                 # default number of time steps when training
+no_series_to_predict = 10             # default number of series to predict when training as a set
+no_series_to_train_set = 20           # default number of series to train when working as a set
+no_series_to_train_per_series = 15    # default number of series to train when working per series
 for i in range(len(sys.argv)):
   if(sys.argv[i] == "-n"):
-    time_series_num = int(sys.argv[i+1])
+    no_series_to_predict = int(sys.argv[i+1])
     break
-print("number of time series given is:", time_series_num)
 
-# Create data frame from our csv file
-df=pd.read_csv("../../nasdaq2007_17.csv", header=None, delimiter='\t')
+df=pd.read_csv("nasdaq2007_17.csv", header=None, delimiter='\t') #create data frame from our csv file
 
-print(df.head(5))   #print first 5 rows
+df.head(5)   #print first 5 rows
 
-df = df.transpose() # transpose rows into columns
+df = df.transpose()             # transpose rows to columns
+df = df.drop(0)                 # delete first row of time series ids
+df = df.reset_index(drop=True)  # reset the indeces
+print("Number of rows and columns:", df.shape)
+df.head(5)   #print first 5 rows
 
+# for series_number in series_to_train:
 
-# todo choose random(?) time series
-
-
-
-# Split data frame to training and test sets
+#series_number = 0
 # split = int(0.8*df.shape[0])
-# training_set = df.iloc[:split, 1:2].values
-# test_set = df.iloc[split:, 1:2].values
+training_set = df.iloc[:2920, 0:1].values  #training set will be the first 80% rows
+test_set = df.iloc[2920:, 0:1].values      #test set will be the rest rows
+
+# Feature Scaling
+sc = MinMaxScaler(feature_range = (0, 1))
+training_set_scaled = sc.fit_transform(training_set)
+
+X_train = []
+y_train = []
+for i in range(look_back_window, 2920):
+    X_train.append(training_set_scaled[i-look_back_window:i, 0])
+    y_train.append(training_set_scaled[i, 0])
+
+# print("list")
+# print(X_train)
+# print()
+
+    
+X_train, y_train = np.array(X_train), np.array(y_train)
+# print(X_train)
+X_train = np.reshape(X_train, (X_train.shape[0], X_train.shape[1], 1))
+
+model = Sequential()
+#Adding the first LSTM layer and some Dropout regularisation
+model.add(LSTM(units = 50, return_sequences = True, input_shape = (X_train.shape[1], 1)))
+model.add(Dropout(0.2))
+# Adding a second LSTM layer and some Dropout regularisation
+model.add(LSTM(units = 50, return_sequences = True))
+model.add(Dropout(0.2))
+# Adding a third LSTM layer and some Dropout regularisation
+model.add(LSTM(units = 50, return_sequences = True))
+model.add(Dropout(0.2))
+# Adding a fourth LSTM layer and some Dropout regularisation
+model.add(LSTM(units = 50))
+model.add(Dropout(0.2))
+# Adding the output layer
+model.add(Dense(units = 1))
+
+# Compiling the RNN
+model.compile(optimizer = 'adam', loss = 'mean_squared_error')
+
+# Fitting the RNN to the Training set
+model.fit(X_train, y_train, epochs = 100, batch_size = 32)
+
+# Getting the predicted stock price of 2017
+dataset_train = df.iloc[:2920, 0:1]
+dataset_test = df.iloc[2920:, 0:1]
+
+dataset_total = pd.concat((dataset_train, dataset_test), axis = 0)
+inputs = dataset_total[len(dataset_total) - len(dataset_test) - look_back_window:].values
+inputs = inputs.reshape(-1,1)
+inputs = sc.transform(inputs)
+X_test = []
+for i in range(look_back_window, 730+look_back_window):
+    X_test.append(inputs[i-look_back_window:i, 0])
+X_test = np.array(X_test)
+X_test = np.reshape(X_test, (X_test.shape[0], X_test.shape[1], 1))
+print(X_test.shape)
+# (730+look_back_window, look_back_window, 1)
+
+
+predicted_stock_price = model.predict(X_test)
+predicted_stock_price = sc.inverse_transform(predicted_stock_price)
+
+
+# Visualising the results
+plt.plot(dataset_test.values, color = "red", label = "Real Value")
+plt.plot(predicted_stock_price, color = "blue", label = "Predicted Value")
+plt.xticks(np.arange(0,730,100))
+plt.title('Stock Price Prediction')
+plt.xlabel('Time')
+plt.ylabel('Stock Price')
+plt.legend()
+plt.show()
