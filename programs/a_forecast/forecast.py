@@ -27,8 +27,8 @@ from sklearn.model_selection import train_test_split
 from keras.callbacks import EarlyStopping
 
 window = 40                 # default number of time steps when training
-num_epochs = 50                # default number of epochs used when training the model                     
-num_series_selected = 3    # default number of series to train
+num_epochs = 10                # default number of epochs used when training the model                     
+num_series_selected = 100    # default number of series to train
 
 # To fit and predict time series per series method is 1
 # To fit and predict time series as a set method is 2
@@ -181,33 +181,32 @@ model.compile(optimizer = 'adam', loss = 'mean_squared_error')
 model.fit(train_series_X, train_series_Y, epochs = num_epochs, batch_size = 32)
 
 
+for series_number in range(100):
 
+  # Preparing the testing data 
+  dataset_train = df.iloc[:split, series_number:series_number+1]
+  dataset_test = df.iloc[split:, series_number:series_number+1]
 
-series_number = 0
-# Preparing the testing data 
-dataset_train = df.iloc[:split, series_number:series_number+1]
-dataset_test = df.iloc[split:, series_number:series_number+1]
+  dataset_total = pd.concat((dataset_train, dataset_test), axis = 0)
+  inputs = dataset_total[len(dataset_total) - len(dataset_test) - window:].values
+  inputs = inputs.reshape(-1,1)
+  inputs = sc.transform(inputs)
+  X_test = []
+  for i in range(window, len(dataset_test)+window):
+      X_test.append(inputs[i-window:i, 0])
+  X_test = np.array(X_test)
+  X_test = np.reshape(X_test, (X_test.shape[0], X_test.shape[1], 1))
 
-dataset_total = pd.concat((dataset_train, dataset_test), axis = 0)
-inputs = dataset_total[len(dataset_total) - len(dataset_test) - window:].values
-inputs = inputs.reshape(-1,1)
-inputs = sc.transform(inputs)
-X_test = []
-for i in range(window, len(dataset_test)+window):
-    X_test.append(inputs[i-window:i, 0])
-X_test = np.array(X_test)
-X_test = np.reshape(X_test, (X_test.shape[0], X_test.shape[1], 1))
+  predicted_stock_price = model.predict(X_test)
+  predicted_stock_price = sc.inverse_transform(predicted_stock_price)
 
-predicted_stock_price = model.predict(X_test)
-predicted_stock_price = sc.inverse_transform(predicted_stock_price)
-
-# Visualising the results
-plt.plot(dataset_test.values, color = "red", label = "Real Value")
-plt.plot(predicted_stock_price, color = "blue", label = "Predicted Value")
-plt.xticks(np.arange(0,len(dataset_test),100))
-plt.title('Stock Price Prediction for "'+df.columns[series_number]+'" time series')
-plt.xlabel('Time')
-plt.ylabel('Stock Price')
-plt.legend()
-plt.show()
+  # Visualising the results
+  plt.plot(dataset_test.values, color = "red", label = "Real Value")
+  plt.plot(predicted_stock_price, color = "blue", label = "Predicted Value")
+  plt.xticks(np.arange(0,len(dataset_test),100))
+  plt.title('Stock Price Prediction for "'+df.columns[series_number]+'" time series')
+  plt.xlabel('Time')
+  plt.ylabel('Stock Price')
+  plt.legend()
+  plt.show()
 
