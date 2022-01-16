@@ -41,6 +41,8 @@ for i in range(len(sys.argv)):
     window = int(sys.argv[i+1])
   elif(sys.argv[i] == "-e"):
     epochs = int(sys.argv[i+1])
+  elif(sys.argv[i] == "-m"):
+    method = int(sys.argv[i+1])
 
 df=pd.read_csv("nasdaq2007_17.csv", header=None, delimiter='\t') #create data frame from our csv file
 
@@ -71,8 +73,8 @@ if method == 1:
     X_train = []
     Y_train = []
     for i in range(window, split):
-        X_train.append(training_set_scaled[i-window:i, 0])
-        Y_train.append(training_set_scaled[i, 0])
+      X_train.append(training_set_scaled[i-window:i, 0])
+      Y_train.append(training_set_scaled[i, 0])
 
     # Reshape input
     X_train, Y_train = np.array(X_train), np.array(Y_train)
@@ -112,7 +114,7 @@ if method == 1:
     inputs = sc.transform(inputs)
     X_test = []
     for i in range(window, len(dataset_test)+window):
-        X_test.append(inputs[i-window:i, 0])
+      X_test.append(inputs[i-window:i, 0])
     X_test = np.array(X_test)
     X_test = np.reshape(X_test, (X_test.shape[0], X_test.shape[1], 1))
 
@@ -129,84 +131,87 @@ if method == 1:
     plt.legend()
     plt.show()
 
+
 """Method 2 : Train as a set"""
 
-# Concat all time series into one big series to train
-train_series_X = []
-train_series_Y = []
-for series_number in series_to_train:
+if method == 2:
   split = int(0.8*df.shape[0])
-  training_set = df.iloc[:split, series_number:series_number+1].values  #training set will be the first 80% rows
-  
-  # Feature Scaling
-  sc = MinMaxScaler(feature_range = (0, 1))
-  training_set_scaled = sc.fit_transform(training_set)
+  # Concat all time series into one big series to train
+  train_series_X = []
+  train_series_Y = []
+  for series_number in series_to_train:
+    
+    training_set = df.iloc[:split, series_number:series_number+1].values  #training set will be the first 80% rows
+    
+    # Feature Scaling
+    sc = MinMaxScaler(feature_range = (0, 1))
+    training_set_scaled = sc.fit_transform(training_set)
 
-  X_train = []
-  Y_train = []
-  for i in range(window, split):
+    X_train = []
+    Y_train = []
+    for i in range(window, split):
       X_train.append(training_set_scaled[i-window:i, 0])
       Y_train.append(training_set_scaled[i, 0])
-  
+    
 
-  
-  train_series_X = train_series_X + X_train
-  train_series_Y = train_series_Y + Y_train
+    
+    train_series_X = train_series_X + X_train
+    train_series_Y = train_series_Y + Y_train
 
-# Reshape input
-train_series_X, train_series_Y = np.array(train_series_X), np.array(train_series_Y)
-train_series_X = np.reshape(train_series_X, (train_series_X.shape[0], train_series_X.shape[1], 1))
+  # Reshape input
+  train_series_X, train_series_Y = np.array(train_series_X), np.array(train_series_Y)
+  train_series_X = np.reshape(train_series_X, (train_series_X.shape[0], train_series_X.shape[1], 1))
 
-# Training the model
-model = Sequential()
-#Adding the first LSTM layer and some Dropout regularisation
-model.add(LSTM(units = 50, return_sequences = True, input_shape = (train_series_X.shape[1], 1)))
-model.add(Dropout(0.2))
-# Adding a second LSTM layer and some Dropout regularisation
-model.add(LSTM(units = 50, return_sequences = True))
-model.add(Dropout(0.2))
-# Adding a third LSTM layer and some Dropout regularisation
-model.add(LSTM(units = 50, return_sequences = True))
-model.add(Dropout(0.2))
-# Adding a fourth LSTM layer and some Dropout regularisation
-model.add(LSTM(units = 50))
-model.add(Dropout(0.2))
-# Adding the output layer
-model.add(Dense(units = 1))
+  # Training the model
+  model = Sequential()
+  #Adding the first LSTM layer and some Dropout regularisation
+  model.add(LSTM(units = 50, return_sequences = True, input_shape = (train_series_X.shape[1], 1)))
+  model.add(Dropout(0.2))
+  # Adding a second LSTM layer and some Dropout regularisation
+  model.add(LSTM(units = 50, return_sequences = True))
+  model.add(Dropout(0.2))
+  # Adding a third LSTM layer and some Dropout regularisation
+  model.add(LSTM(units = 50, return_sequences = True))
+  model.add(Dropout(0.2))
+  # Adding a fourth LSTM layer and some Dropout regularisation
+  model.add(LSTM(units = 50))
+  model.add(Dropout(0.2))
+  # Adding the output layer
+  model.add(Dense(units = 1))
 
-# Compiling the RNN
-model.compile(optimizer = 'adam', loss = 'mean_squared_error')
+  # Compiling the RNN
+  model.compile(optimizer = 'adam', loss = 'mean_squared_error')
 
-# Fitting the RNN to the Training set
-model.fit(train_series_X, train_series_Y, epochs = num_epochs, batch_size = 32)
+  # Fitting the RNN to the Training set
+  model.fit(train_series_X, train_series_Y, epochs = num_epochs, batch_size = 32)
 
 
-for series_number in range(100):
+  for series_number in range(100):
 
-  # Preparing the testing data 
-  dataset_train = df.iloc[:split, series_number:series_number+1]
-  dataset_test = df.iloc[split:, series_number:series_number+1]
+    # Preparing the testing data 
+    dataset_train = df.iloc[:split, series_number:series_number+1]
+    dataset_test = df.iloc[split:, series_number:series_number+1]
 
-  dataset_total = pd.concat((dataset_train, dataset_test), axis = 0)
-  inputs = dataset_total[len(dataset_total) - len(dataset_test) - window:].values
-  inputs = inputs.reshape(-1,1)
-  inputs = sc.transform(inputs)
-  X_test = []
-  for i in range(window, len(dataset_test)+window):
+    dataset_total = pd.concat((dataset_train, dataset_test), axis = 0)
+    inputs = dataset_total[len(dataset_total) - len(dataset_test) - window:].values
+    inputs = inputs.reshape(-1,1)
+    inputs = sc.transform(inputs)
+    X_test = []
+    for i in range(window, len(dataset_test)+window):
       X_test.append(inputs[i-window:i, 0])
-  X_test = np.array(X_test)
-  X_test = np.reshape(X_test, (X_test.shape[0], X_test.shape[1], 1))
+    X_test = np.array(X_test)
+    X_test = np.reshape(X_test, (X_test.shape[0], X_test.shape[1], 1))
 
-  predicted_stock_price = model.predict(X_test)
-  predicted_stock_price = sc.inverse_transform(predicted_stock_price)
+    predicted_stock_price = model.predict(X_test)
+    predicted_stock_price = sc.inverse_transform(predicted_stock_price)
 
-  # Visualising the results
-  plt.plot(dataset_test.values, color = "red", label = "Real Value")
-  plt.plot(predicted_stock_price, color = "blue", label = "Predicted Value")
-  plt.xticks(np.arange(0,len(dataset_test),100))
-  plt.title('Stock Price Prediction for "'+df.columns[series_number]+'" time series')
-  plt.xlabel('Time')
-  plt.ylabel('Stock Price')
-  plt.legend()
-  plt.show()
+    # Visualising the results
+    plt.plot(dataset_test.values, color = "red", label = "Real Value")
+    plt.plot(predicted_stock_price, color = "blue", label = "Predicted Value")
+    plt.xticks(np.arange(0,len(dataset_test),100))
+    plt.title('Stock Price Prediction for "'+df.columns[series_number]+'" time series')
+    plt.xlabel('Time')
+    plt.ylabel('Stock Price')
+    plt.legend()
+    plt.show()
 
