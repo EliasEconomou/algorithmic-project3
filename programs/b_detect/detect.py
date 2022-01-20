@@ -29,8 +29,8 @@ from keras.callbacks import EarlyStopping
 pd.options.mode.chained_assignment = None
 
 window = 30                 # default number of time steps when training
-num_epochs = 4                # default number of epochs used when training the model                     
-predict_series = 10         # default number of series to predict
+num_epochs = 6                # default number of epochs used when training the model                     
+predict_series = 5         # default number of series to predict
 
 for i in range(len(sys.argv)):
   if(sys.argv[i] == "-n"):
@@ -40,7 +40,7 @@ for i in range(len(sys.argv)):
   elif(sys.argv[i] == "-e"):
     epochs = int(sys.argv[i+1])
 
-df=pd.read_csv("../../nasdaq2007_17.csv", header=None, delimiter='\t') #create data frame from our csv file
+df=pd.read_csv("nasdaq2007_17.csv", header=None, delimiter='\t') #create data frame from our csv file
 
 df = df.transpose() # transpose rows to columns
 
@@ -49,8 +49,8 @@ df.columns = df.iloc[0]
 df = df.reindex(df.index.drop(0)).reset_index(drop=True)
 df.columns.name = None
 
-num_series_selected = 10#df.shape[1]
-print("Number of selected series to train: ",num_series_selected)
+num_series_selected = 100#df.shape[1]
+print("Number of selected series to plot anomalies: ",num_series_selected)
 series_to_train = []
 for i in range(num_series_selected):
   series_to_train.append(i)
@@ -58,6 +58,8 @@ print(series_to_train)
 
 # Drop any columns (series) that have not been selected
 df.drop(df.iloc[:, num_series_selected:], inplace = True, axis = 1)
+
+df
 
 split = 0.8 # "split" percent of a series for training - the rest for testing
 train_size = int(len(df) * split)
@@ -128,65 +130,80 @@ plt.legend()
 
 X_train_pred = model.predict(X_train)
 train_mae_loss = np.mean(np.abs(X_train_pred - X_train), axis=1)
+print(max(train_mae_loss))
 
 sns.displot(train_mae_loss,bins=50,kde=True);
 
-THRESHOLD = 0.9
+THRESHOLD = 0.3
 
-X_test_pred = model.predict(X_test)
-test_mae_loss = np.mean(np.abs(X_test_pred - X_test), axis=1)
 
-test_score_df = pd.DataFrame(index=test[window:].index)
-test_score_df['loss'] = test_mae_loss
-test_score_df['threshold'] = THRESHOLD
-test_score_df['anomaly'] = test_score_df.loss > test_score_df.threshold
-test_score_df['value'] = test[window:].value
 
-plt.plot(test_score_df.index,test_score_df.loss,label = 'loss')
-plt.plot(test_score_df.index,test_score_df.threshold,label = 'threshold')
-plt.xticks(rotation=25)
-plt.legend()
+for series_number in range(20):
+  test = df.iloc[train_size:len(df),series_number:series_number+1]
+  # series_title = test.columns[series_number]
 
-anomalies = test_score_df[test_score_df.anomaly == True]
-anomalies
+  test[df.columns[series_number]] = scaler.transform(test[[df.columns[series_number]]])
+  # test = pd.DataFrame(test, columns =['value'])
+  test = test.rename(columns={test.columns[0]: 'value'})
+  test.index.name = 'time'
+  x_test, y_test = create_dataset(test[['value']],test.value,window)
+  x_test_pred = model.predict(x_test)
+  test_mae_loss = np.mean(np.abs(x_test_pred - x_test), axis=1)
 
-print(test[window:])
 
-value_df = test[window:]
+  test_score_df = pd.DataFrame(index=test[window:].index)
+  test_score_df['loss'] = test_mae_loss
+  test_score_df['threshold'] = THRESHOLD
+  test_score_df['anomaly'] = test_score_df.loss > test_score_df.threshold
+  test_score_df['value'] = test[window:].value
 
-x = np.array(value_df)
-x.shape
-value_df = value_df.drop('value', 1)
+  # plt.plot(test_score_df.index,test_score_df.loss,label = 'loss')
+  # plt.plot(test_score_df.index,test_score_df.threshold,label = 'threshold')
+  # plt.xticks(rotation=25)
+  # plt.legend()
 
-x = scaler.inverse_transform(x)
+  anomalies = test_score_df[test_score_df.anomaly == True]
+  if anomalies.empty:
+    continue
 
-value_df['value'] = x
 
-anom_df = anomalies
+  value_df = test[window:]
 
-anom_df = anom_df.drop('loss', 1)
-anom_df = anom_df.drop('threshold', 1)
-anom_df = anom_df.drop('anomaly', 1)
+  x = np.array(value_df)
+  x.shape
+  value_df = value_df.drop('value', 1)
 
-a = np.array(anom_df)
+  x = scaler.inverse_transform(x)
 
-a = scaler.inverse_transform(a)
-anom_df['value'] = a
+  value_df['value'] = x
 
-anom_df.shape
 
-plt.plot(
-  test[window:].index, 
-  value_df.value, 
-  label='value'
-);
-print(test[window:])
-sns.scatterplot(
-  anomalies.index,
-  anom_df.value,
-  color=sns.color_palette()[3],
-  s=52,
-  label='anomaly'
-)
-plt.xticks(rotation=25)
-plt.legend();
+  anom_df = anomalies
+
+  anom_df = anom_df.drop('loss', 1)
+  anom_df = anom_df.drop('threshold', 1)
+  anom_df = anom_df.drop('anomaly', 1)
+
+  a = np.array(anom_df)
+
+  a = scaler.inverse_transform(a)
+  anom_df['value'] = a
+
+
+  plt.plot(
+    test[window:].index, 
+    value_df.value, 
+    label='value'
+  );
+  # print(test[window:])
+  sns.scatterplot(
+    anomalies.index,
+    anom_df.value,
+    color=sns.color_palette()[3],
+    s=52,
+    label='anomaly'
+  )
+  plt.xticks(rotation=25)
+  plt.legend()
+  plt.show()
+
