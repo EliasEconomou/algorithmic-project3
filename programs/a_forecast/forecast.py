@@ -26,13 +26,13 @@ from sklearn.metrics import mean_absolute_error
 from sklearn.model_selection import train_test_split
 from keras.callbacks import EarlyStopping
 
-window = 30                 # default number of time steps when training
-num_epochs = 5                # default number of epochs used when training the model                     
+window = 40                 # default number of time steps when training
+num_epochs = 15                # default number of epochs used when training the model                     
 predict_series = 10         # default number of series to predict
-
-# To fit and predict time series per series method is 1
-# To fit and predict time series as a set method is 2
-method = 1 # default method
+dataset_path = "nasdaq2007_17.csv"
+# To train time series 'per series' method is 1
+# To train time series 'as a set' method is 2
+method = 2 # default method is 2
 
 for i in range(len(sys.argv)):
   if(sys.argv[i] == "-n"):
@@ -41,8 +41,12 @@ for i in range(len(sys.argv)):
     window = int(sys.argv[i+1])
   elif(sys.argv[i] == "-e"):
     epochs = int(sys.argv[i+1])
+  elif(sys.argv[i] == "-m"):
+    method = int(sys.argv[i+1])
+  elif(sys.argv[i] == "-d"):
+    dataset_path = sys.argv[i+1]
 
-df=pd.read_csv("../../nasdaq2007_17.csv", header=None, delimiter='\t') #create data frame from our csv file
+df=pd.read_csv(dataset_path, header=None, delimiter='\t') #create data frame from our csv file
 
 df = df.transpose() # transpose rows to columns
 
@@ -50,8 +54,6 @@ df = df.transpose() # transpose rows to columns
 df.columns = df.iloc[0]
 df = df.reindex(df.index.drop(0)).reset_index(drop=True)
 df.columns.name = None
-
-
 
 """Method 1: Train per series"""
 
@@ -140,12 +142,11 @@ if method == 2: #in training as a set we will train with all series and predict 
   train_series_X = []
   train_series_Y = []
   
-  num_series_selected = df.shape[1]
+  num_series_selected = 100
   print("Number of selected series to train: ",num_series_selected)
   series_to_train = []
   for i in range(num_series_selected):
     series_to_train.append(i)
-  print(series_to_train)
 
   for series_number in series_to_train:
     split = int(0.8*df.shape[0])
@@ -170,30 +171,32 @@ if method == 2: #in training as a set we will train with all series and predict 
   train_series_X, train_series_Y = np.array(train_series_X), np.array(train_series_Y)
   train_series_X = np.reshape(train_series_X, (train_series_X.shape[0], train_series_X.shape[1], 1))
 
-  # # Training the model
-  # model = Sequential()
-  # #Adding the first LSTM layer and some Dropout regularisation
-  # model.add(LSTM(units = 50, return_sequences = True, input_shape = (train_series_X.shape[1], 1)))
-  # model.add(Dropout(0.2))
-  # # Adding a second LSTM layer and some Dropout regularisation
-  # model.add(LSTM(units = 50, return_sequences = True))
-  # model.add(Dropout(0.2))
-  # # Adding a third LSTM layer and some Dropout regularisation
-  # model.add(LSTM(units = 50, return_sequences = True))
-  # model.add(Dropout(0.2))
-  # # Adding a fourth LSTM layer and some Dropout regularisation
-  # model.add(LSTM(units = 50))
-  # model.add(Dropout(0.2))
-  # # Adding the output layer
-  # model.add(Dense(units = 1))
+  # Training the model
+  model = Sequential()
+  #Adding the first LSTM layer and some Dropout regularisation
+  model.add(LSTM(units = 50, return_sequences = True, input_shape = (train_series_X.shape[1], 1)))
+  model.add(Dropout(0.2))
+  # Adding a second LSTM layer and some Dropout regularisation
+  model.add(LSTM(units = 50, return_sequences = True))
+  model.add(Dropout(0.2))
+  # Adding a third LSTM layer and some Dropout regularisation
+  model.add(LSTM(units = 50, return_sequences = True))
+  model.add(Dropout(0.2))
+  # Adding a fourth LSTM layer and some Dropout regularisation
+  model.add(LSTM(units = 50))
+  model.add(Dropout(0.2))
+  # Adding the output layer
+  model.add(Dense(units = 1))
 
-  # # Compiling the RNN
-  # model.compile(optimizer = 'adam', loss = 'mean_squared_error')
+  # Compiling the RNN
+  model.compile(optimizer = 'adam', loss = 'mean_squared_error')
 
-  # # Fitting the RNN to the Training set
-  # model.fit(train_series_X, train_series_Y, epochs = num_epochs, batch_size = 32)
+  # Fitting the RNN to the Training set
+  model.fit(train_series_X, train_series_Y, epochs = num_epochs, batch_size = 32)
 
-  model = keras.models.load_model('forecast_model.h5')
+  model.save('forecast_model_v1.h5')
+
+  # model = keras.models.load_model('forecast_model_v3.h5')
 
   for series_number in range(predict_series):
 

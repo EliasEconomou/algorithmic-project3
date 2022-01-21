@@ -31,7 +31,8 @@ pd.options.mode.chained_assignment = None
 window = 30                 # default number of time steps when training
 num_epochs = 6                # default number of epochs used when training the model                     
 predict_series = 5         # default number of series to predict
-
+dataset_path = "nasdaq2007_17.csv"
+mae = 0.3 #default
 for i in range(len(sys.argv)):
   if(sys.argv[i] == "-n"):
     predict_series = int(sys.argv[i+1])
@@ -39,8 +40,12 @@ for i in range(len(sys.argv)):
     window = int(sys.argv[i+1])
   elif(sys.argv[i] == "-e"):
     epochs = int(sys.argv[i+1])
+  elif(sys.argv[i] == "-d"):
+    dataset_path = sys.argv[i+1]
+  elif(sys.argv[i] == "-mae"):
+    dataset_path = sys.argv[i+1]
 
-df=pd.read_csv("nasdaq2007_17.csv", header=None, delimiter='\t') #create data frame from our csv file
+df=pd.read_csv(dataset_path, header=None, delimiter='\t') #create data frame from our csv file
 
 df = df.transpose() # transpose rows to columns
 
@@ -49,17 +54,17 @@ df.columns = df.iloc[0]
 df = df.reindex(df.index.drop(0)).reset_index(drop=True)
 df.columns.name = None
 
-num_series_selected = 100#df.shape[1]
+num_series_selected = 100 # or df.shape[1] to select all series from dataset
 print("Number of selected series to plot anomalies: ",num_series_selected)
 series_to_train = []
 for i in range(num_series_selected):
   series_to_train.append(i)
-print(series_to_train)
+# print(series_to_train)
 
 # Drop any columns (series) that have not been selected
 df.drop(df.iloc[:, num_series_selected:], inplace = True, axis = 1)
 
-df
+# df
 
 split = 0.8 # "split" percent of a series for training - the rest for testing
 train_size = int(len(df) * split)
@@ -130,20 +135,19 @@ plt.legend()
 
 X_train_pred = model.predict(X_train)
 train_mae_loss = np.mean(np.abs(X_train_pred - X_train), axis=1)
-print(max(train_mae_loss))
+# print(max(train_mae_loss))
 
 sns.displot(train_mae_loss,bins=50,kde=True);
 
-THRESHOLD = 0.3
+THRESHOLD = mae
 
 
 
+print("Printing all n series that have anomalies:")
 for series_number in range(20):
   test = df.iloc[train_size:len(df),series_number:series_number+1]
-  # series_title = test.columns[series_number]
-
   test[df.columns[series_number]] = scaler.transform(test[[df.columns[series_number]]])
-  # test = pd.DataFrame(test, columns =['value'])
+  
   test = test.rename(columns={test.columns[0]: 'value'})
   test.index.name = 'time'
   x_test, y_test = create_dataset(test[['value']],test.value,window)
@@ -157,10 +161,6 @@ for series_number in range(20):
   test_score_df['anomaly'] = test_score_df.loss > test_score_df.threshold
   test_score_df['value'] = test[window:].value
 
-  # plt.plot(test_score_df.index,test_score_df.loss,label = 'loss')
-  # plt.plot(test_score_df.index,test_score_df.threshold,label = 'threshold')
-  # plt.xticks(rotation=25)
-  # plt.legend()
 
   anomalies = test_score_df[test_score_df.anomaly == True]
   if anomalies.empty:
