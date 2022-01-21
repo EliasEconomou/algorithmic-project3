@@ -43,7 +43,7 @@ for i in range(len(sys.argv)):
   elif(sys.argv[i] == "-d"):
     dataset_path = sys.argv[i+1]
   elif(sys.argv[i] == "-mae"):
-    dataset_path = sys.argv[i+1]
+    mae = sys.argv[i+1]
 
 df=pd.read_csv(dataset_path, header=None, delimiter='\t') #create data frame from our csv file
 
